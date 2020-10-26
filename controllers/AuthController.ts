@@ -20,11 +20,10 @@ export default class AuthController {
     // If Plaid public access token exists, we're ready to go
     // If Plaid public access token does not exist, we need user to sign in with Plaid to integrate
     async authenticatePlaid(req: express.Request, res: express.Response): Promise<void> {
-        const { sub } = req.body;
-    
-        const [user] = await this.authenticationModel.findOrCreate({ where: { auth0Token: sub } });
-
-        res.json({ plaidPublicToken: user.plaidPublicToken })
+        try {
+            const [user] = await this.authenticationModel.findOrCreate({ where: { auth0Token: req.body.sub } });
+            res.json({ plaidPublicToken: user.plaidPublicToken });
+        } catch (err: any) { throw new Error(err); } // implement error handling
     }
 
     // Updates user auth table to include Plaid Public, Access Tokens
@@ -33,7 +32,7 @@ export default class AuthController {
         try {
             const { accessToken } = await this.fetch.exchangePlaidToken(plaidPublicToken);
             
-            const authModel = await this.authenticationModel.findOne({ where: { auth0Token: auth0Token } });
+            const authModel = await this.authenticationModel.findOne({ where: { auth0Token } });
             authModel.plaidPublicToken = plaidPublicToken;
             authModel.plaidAccessToken = accessToken;
             await authModel.save();
@@ -45,8 +44,12 @@ export default class AuthController {
         }
     }
 
-    async getPlaidToken(req: express.Request, res: express.Response): Promise<void> {
-
+    async getPlaidToken(req: express.Request): Promise<string> {
+        const { auth0Token, plaidPublicToken } = req.body;
+        try {
+            const authModel = await this.authenticationModel.findOne({ where: { auth0Token, plaidPublicToken } });
+            return authModel.plaidAccessToken;
+        } catch(err: any) { throw new Error(err) }
     }
 }
 
